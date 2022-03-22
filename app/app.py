@@ -1,10 +1,10 @@
 from flask import Flask, request
-import sqlite3
 from sqlalchemy import create_engine, Column, Integer, String, Text
-from sqlalchemy.orm import sessionmaker, mapper, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql.expression import desc
-engine = create_engine('postgresql+psycopg2://postgres:postgres@postgres'
-                       ':5432')
+
+
+engine = create_engine('postgresql+psycopg2://postgres:postgres@postgres:5432')
 Base = declarative_base(bind=engine)
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -24,15 +24,11 @@ class Cat(Base):
     def __repr__(self) -> str:
         return f'{self.id} {self.name}'
 
+
 Base.metadata.create_all()
-
-
 app: Flask = Flask(__name__)
 dir_path: str = '../cats.db'
 
-sql_request = '''
-SELECT * FROM `cats` 
-'''
 
 def before_request_func():
     Base.metadata.drop_all(engine)
@@ -40,8 +36,7 @@ def before_request_func():
     objects = []
     for i in range(20):
         objects.append(Cat(id=i, name=chr(i+97)+'Kot'+str(i), age=i+1,\
-                                                          description='its \
-                    cat '+str(i+1), rating=i % 6))
+    description='its cat '+str(i+1), rating=i % 6))
     session.bulk_save_objects(objects)
     session.commit()
 
@@ -58,18 +53,19 @@ class Cats(object):
         cats = session.query(Cat)
         if params.search_name:
             cats = cats.filter(Cat.name.ilike(f'%{params.search_name}%'))
-        type_sort_age = Cat.age if params.sort_age == 'ASC' else desc(Cat.age)
-        type_sort_name = Cat.name if params.sort_name == 'ASC' else desc(
-            Cat.name)
-        cats = cats.p
-        cats = cats.order_by(type_sort_age)
-        cats = cats.order_by(type_sort_name)
-        return cats.all()
+        if params.sort_age is not None:
+            type_sort_age = Cat.age if params.sort_age == 'ASC' else desc(Cat.age)
+            cats = cats.order_by(type_sort_age)
+        if params.sort_name is not None:
+            type_sort_name = Cat.name if params.sort_name == 'ASC' else desc(Cat.name)
+            cats = cats.order_by(type_sort_name)
 
+        cats = cats.limit(params.size).offset((params.page-1) * params.size)
+        return cats.all()
 
 class QueryParams(object):
     def __init__(self, query: dict):
-        self.sort_age = query.get('sort_age', 'ASC')
+        self.sort_age = query.get('sort_age')
         self.sort_name = query.get('sort_name', 'ASC')
         self.search_name = query.get('search_name')
         self.page = int(query.get('page', 1))
