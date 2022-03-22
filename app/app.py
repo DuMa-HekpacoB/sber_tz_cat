@@ -3,7 +3,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.sql.expression import desc
 
-
 engine = create_engine('postgresql+psycopg2://postgres:postgres@postgres:5432')
 Base = declarative_base(bind=engine)
 Session = sessionmaker(bind=engine)
@@ -21,16 +20,11 @@ class Cat(Base):
     rating = Column(Integer, nullable=False)
     img_path = Column(String)
 
-    def __repr__(self) -> str:
-        return f'{self.id} {self.name}'
+
+app = Flask(__name__)
 
 
-Base.metadata.create_all()
-app: Flask = Flask(__name__)
-dir_path: str = '../cats.db'
-
-
-def before_request_func():
+def before_app_func():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     objects = []
@@ -40,11 +34,11 @@ def before_request_func():
             Cat(
                 id=i,
                 name=chr(i + 97) + 'Kot' + str(i),
-                age=i+1,
+                age=i + 1,
                 description='its cat ' + str(i + 1) + '.His a nice cat!',
                 rating=i % 6,
                 breed=breed_list[i % len(breed_list)],
-                img_path=f'{i+1}.jpeg',
+                img_path=f'{i + 1}.jpeg',
             )
         )
     session.bulk_save_objects(objects)
@@ -52,37 +46,42 @@ def before_request_func():
 
 
 class Cats(object):
-    def __init__(self, path: str) -> None:
-        self.path = path
-
-    def get_id(self, _id: int):
+    @classmethod
+    def get_id(cls, _id: int):
         return session.query(Cat).filter(Cat.id == _id).first()
 
-    def get_list(self, params):
+    @classmethod
+    def get_list(cls, params):
         cats = session.query(Cat)
         if params.search_age:
             cats = cats.filter(Cat.age == params.search_age)
         if params.search_description:
-            cats = cats.filter(Cat.description.ilike(f'%{params.search_description}%'))
+            cats = cats.filter(
+                Cat.description.ilike(f'%{params.search_description}%'))
         if params.sort_rating is not None:
-            type_sort_rating = Cat.rating if params.sort_rating == 'ASC' else desc(Cat.rating)
+            type_sort_rating = Cat.rating if params.sort_rating == 'ASC' else desc(
+                Cat.rating)
             cats = cats.order_by(type_sort_rating)
         if params.search_breed:
             cats = cats.filter(Cat.breed.ilike(f'%{params.search_breed}%'))
         if params.search_name:
             cats = cats.filter(Cat.name.ilike(f'%{params.search_name}%'))
         if params.sort_breed:
-            type_sort_breed =Cat.breed if params.sort_breed == 'ASC' else desc(Cat.breed)
+            type_sort_breed = Cat.breed if params.sort_breed == 'ASC' else desc(
+                Cat.breed)
             cats = cats.order_by(type_sort_breed)
         if params.sort_age is not None:
-            type_sort_age = Cat.age if params.sort_age == 'ASC' else desc(Cat.age)
+            type_sort_age = Cat.age if params.sort_age == 'ASC' else desc(
+                Cat.age)
             cats = cats.order_by(type_sort_age)
         if params.sort_name is not None:
-            type_sort_name = Cat.name if params.sort_name == 'ASC' else desc(Cat.name)
+            type_sort_name = Cat.name if params.sort_name == 'ASC' else desc(
+                Cat.name)
             cats = cats.order_by(type_sort_name)
 
-        cats = cats.limit(params.size).offset((params.page-1) * params.size)
+        cats = cats.limit(params.size).offset((params.page - 1) * params.size)
         return cats.all()
+
 
 class QueryParams(object):
     def __init__(self, query: dict):
@@ -100,16 +99,13 @@ class QueryParams(object):
 
 @app.route('/images/<path:name_file>', methods=['GET'])
 def up_photo(name_file):
-    params = QueryParams(request.args)
     return send_file(f'cats_image/{name_file}', mimetype='image/jpeg')
-
 
 
 @app.route('/cats', methods=['GET'])
 def list_cats() -> str:
     params = QueryParams(request.args)
-    repo_cat = Cats(path=dir_path)
-    cats = repo_cat.get_list(params)
+    cats = Cats.get_list(params)
     count_cats = session.query(Cat).count()
 
     result = f'''
@@ -158,17 +154,16 @@ def list_cats() -> str:
         </tr>
         '''
     result += '</table>'
-    for i in range(count_cats//params.size):
+    for i in range(count_cats // params.size):
         result += f'''
-        <a href='/cats?page={i+1}'>{i+1}</a>
+        <a href='/cats?page={i + 1}'>{i + 1}</a>
         '''
     return result
 
 
 @app.route('/cats/<int:cat_id>', methods=['GET'])
 def one_cat(cat_id):
-    repo_cat = Cats(path=dir_path)
-    cat = repo_cat.get_id(cat_id)
+    cat = Cats.get_id(cat_id)
     if cat is None:
         return 'извините кота не нашли'
     else:
@@ -204,5 +199,5 @@ def one_cat(cat_id):
     return result
 
 
-before_request_func()
+before_app_func()
 app.run(port=8080, debug=True, host='0.0.0.0')
