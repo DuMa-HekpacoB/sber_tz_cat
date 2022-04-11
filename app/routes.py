@@ -6,9 +6,8 @@ from sqlalchemy.sql.expression import desc
 
 module_cats = Blueprint('module_cats', __name__)
 
-
-
 engine = create_engine('postgresql+psycopg2://postgres:postgres@postgres:5432')
+#engine = create_engine('postgresql+psycopg2://postgres:postgres@localhost:5433')
 Base = declarative_base(bind=engine)
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -33,36 +32,35 @@ class Cats(object):
 
     @classmethod
     def get_list(cls, params):
-        cats = session.query(Cat)
+        query_cats = session.query(Cat)
         if params.search_age:
-            cats = cats.filter(Cat.age == params.search_age)
+            query_cats = query_cats.filter(Cat.age == params.search_age)
         if params.search_description:
-            cats = cats.filter(
+            query_cats = query_cats.filter(
                 Cat.description.ilike(f'%{params.search_description}%'))
         if params.sort_rating is not None:
             type_sort_rating = Cat.rating if params.sort_rating == 'ASC' else desc(
                 Cat.rating)
-            cats = cats.order_by(type_sort_rating)
+            query_cats = query_cats.order_by(type_sort_rating)
         if params.search_breed:
-            cats = cats.filter(Cat.breed.ilike(f'%{params.search_breed}%'))
+            query_cats = query_cats.filter(Cat.breed.ilike(f'%{params.search_breed}%'))
         if params.search_name:
-            cats = cats.filter(Cat.name.ilike(f'%{params.search_name}%'))
+            query_cats = query_cats.filter(Cat.name.ilike(f'%{params.search_name}%'))
         if params.sort_breed:
             type_sort_breed = Cat.breed if params.sort_breed == 'ASC' else desc(
                 Cat.breed)
-            cats = cats.order_by(type_sort_breed)
+            query_cats = query_cats.order_by(type_sort_breed)
         if params.sort_age is not None:
             type_sort_age = Cat.age if params.sort_age == 'ASC' else desc(
                 Cat.age)
-            cats = cats.order_by(type_sort_age)
+            query_cats = query_cats.order_by(type_sort_age)
         if params.sort_name is not None:
             type_sort_name = Cat.name if params.sort_name == 'ASC' else desc(
                 Cat.name)
-            cats = cats.order_by(type_sort_name)
-
-        cats = cats.limit(params.size).offset((params.page - 1) * params.size)
-        return cats.all()
-
+            query_cats = query_cats.order_by(type_sort_name)
+        count_cats = query_cats.count()
+        query_cats = query_cats.limit(params.size).offset((params.page - 1) * params.size)
+        return query_cats.all(), count_cats
 
 
 @module_cats.route('/images/<path:name_file>', methods=['GET'])
@@ -73,8 +71,7 @@ def up_photo(name_file):
 @module_cats.route('/cats', methods=['GET'])
 def list_cats() -> str:
     params = QueryParams(request.args)
-    cats = Cats.get_list(params)
-    count_cats = session.query(Cat).count()
+    cats, count_cats = Cats.get_list(params)
 
     result = f'''
     <table>
@@ -122,9 +119,11 @@ def list_cats() -> str:
         </tr>
         '''
     result += '</table>'
-    for i in range(count_cats // params.size):
+    pages = count_cats // params.size + 1 if count_cats % params.size != 0 \
+        else count_cats // params.size
+    for i in range(pages):
         result += f'''
-        <a href='/cats?page={i + 1}'>{i + 1}</a>
+        <a href='/cats?{params.to_query_str(page=i+1)}'>{i + 1}</a>
         '''
     return result
 

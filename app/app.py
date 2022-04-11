@@ -6,7 +6,6 @@ app = Flask(__name__)
 app.register_blueprint(module_cats)
 
 
-
 def before_app_func():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
@@ -26,7 +25,6 @@ def before_app_func():
         )
     session.bulk_save_objects(objects)
     session.commit()
-
 
 
 before_app_func()

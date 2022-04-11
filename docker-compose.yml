@@ -1,5 +1,5 @@
-  version: '3.2'
-  services:
+version: '3.2'
+services:
     postgres:
         image: postgres:12
         container_name: sber_postgres
